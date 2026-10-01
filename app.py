@@ -3,7 +3,7 @@ from google import genai
 from google.genai import types
 from twilio.rest import Client as TwilioClient
 from prompts import SUMMARY_REQUEST_PROMPT, SYSTEM_PROMPT, WELCOME_MESSAGE_TEMPLATE
- 
+import json
 MODEL_NAME = "gemini-3.7-flash"
 st.set_page_config(page_title="MacroSnap", page_icon="🥗")
  
