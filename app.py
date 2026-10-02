@@ -4,7 +4,8 @@ from google.genai import types
 from twilio.rest import Client as TwilioClient
 from prompts import SUMMARY_REQUEST_PROMPT, SYSTEM_PROMPT, WELCOME_MESSAGE_TEMPLATE
 import json
-MODEL_NAME = "gemini-3.7-flash"
+MODEL_NAME = "gemini-3.8-flash"
+FALLBACK_MODEL_NAME = "gemini-3.5-flash-lite"
 st.set_page_config(page_title="MacroSnap", page_icon="🥗")
  
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
@@ -41,11 +42,29 @@ def add_message(role, kind, content):
     render_message(st.session_state.messages[-1])
  
  
+def is_gemini_overloaded(error):
+    details = f"{getattr(error, 'code', '')} {getattr(error, 'status', '')} {error}".upper()
+    return any(marker in details for marker in ("429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "HIGH DEMAND"))
+
+
 def ask_gemini(parts):
     try:
         return st.session_state.chat.send_message(parts).text
     except Exception as error:
-        return f"Sorry, something went wrong: {error}"
+        if not is_gemini_overloaded(error):
+            return "Sorry, Gemini could not complete that request. Please check the API configuration and try again."
+
+        try:
+            fallback_chat = gemini_client.chats.create(
+                model=FALLBACK_MODEL_NAME,
+                config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
+                history=st.session_state.chat.get_history(),
+            )
+            response = fallback_chat.send_message(parts)
+            st.session_state.chat = fallback_chat
+            return response.text
+        except Exception:
+            return "Gemini is busy right now. Please try again shortly."
  
  
 def clean_whatsapp_text(text):
